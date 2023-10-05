@@ -4,10 +4,10 @@ import "testing"
 
 func Test_countNaked(t *testing.T) {
 	tests := []struct {
-		name                              string
-		filename                          string
-		src                               any
-		wantTotal, wantClothed, wantMixed int
+		name                                         string
+		filename                                     string
+		src                                          any
+		wantTotal, wantNaked, wantClothed, wantMixed int
 	}{
 		{
 			name: "no funcs",
@@ -20,6 +20,7 @@ func Test_countNaked(t *testing.T) {
 				return
 			}`,
 			wantTotal: 1,
+			wantNaked: 1,
 		},
 		{
 			name: "mixed",
@@ -30,7 +31,8 @@ func Test_countNaked(t *testing.T) {
 				}
 				return
 			}`,
-			wantTotal:   1,
+			wantTotal:   2,
+			wantNaked:   1,
 			wantClothed: 1,
 			wantMixed:   1,
 		},
@@ -45,6 +47,7 @@ func foo() error {
 	_ = f.Close()
 	return nil
 }`,
+			wantTotal:   2,
 			wantClothed: 2,
 		},
 		{
@@ -63,6 +66,7 @@ func foo() (err error) {
 			name:      "from file",
 			filename:  "testdata/naked.go",
 			wantTotal: 1,
+			wantNaked: 1,
 		},
 		{
 			name: "func literal",
@@ -71,17 +75,29 @@ func foo() (err error) {
 				return
 			}`,
 			wantTotal: 1,
+			wantNaked: 1,
+		},
+		{
+			name: "no return value",
+			src: `package foo
+			func foo() {
+				return
+			}`,
+			wantTotal: 1,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			total, clothed, mixed, err := countNaked(tt.filename, tt.src)
+			total, naked, clothed, mixed, err := countNaked(tt.filename, tt.src)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if total != tt.wantTotal || clothed != tt.wantClothed || mixed != tt.wantMixed {
-				t.Errorf("Unexpected result. Want: %d/%d/%d, got %d/%d/%d", tt.wantTotal, tt.wantClothed, tt.wantMixed, total, clothed, mixed)
+			if total != tt.wantTotal ||
+				naked != tt.wantNaked ||
+				clothed != tt.wantClothed ||
+				mixed != tt.wantMixed {
+				t.Errorf("Unexpected result. Want: %d/%d/%d/%d, got %d/%d/%d/%d", tt.wantTotal, tt.wantNaked, tt.wantClothed, tt.wantMixed, total, naked, clothed, mixed)
 			}
 		})
 	}
