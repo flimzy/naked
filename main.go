@@ -18,7 +18,7 @@ func scanFile(filename string) error {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filename, nil, parser.AllErrors)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	ast.Walk(&visitor{fset: fset}, f)
 	return nil
