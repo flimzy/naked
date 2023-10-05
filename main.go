@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
+	"go/printer"
 	"go/token"
 	"io"
 	"os"
@@ -12,13 +15,18 @@ import (
 )
 
 func main() {
-	count, mixed, err := countNaked(os.Args[1], nil)
-	if err != nil {
-		panic(err)
+	s := bufio.NewScanner(os.Stdin)
+	var total, mixed int64
+	for s.Scan() {
+		filename := s.Text()
+		t, m, err := countNaked(filename, nil)
+		if err != nil {
+			fmt.Printf("%s: %s\n", filename, err)
+		}
+		total += int64(t)
+		mixed += int64(m)
 	}
-	if count > 0 {
-		fmt.Printf("%s: %d naked returns (%d mixed functions)\n", os.Args[1], count, mixed)
-	}
+	fmt.Printf("Found %d naked returns (%d mixed functions)\n", total, mixed)
 }
 
 type frame struct {
@@ -78,7 +86,6 @@ func countNaked(filename string, src any) (total, mixed int, _ error) {
 				mixed++
 			}
 			stack = stack[:len(stack)-1]
-			fmt.Println("decr", stack)
 			return false
 		}
 		switch t := node.(type) {
@@ -86,8 +93,15 @@ func countNaked(filename string, src any) (total, mixed int, _ error) {
 			hasReturns := t.Type.Results != nil
 			stack = append(stack, &frame{hasReturns: hasReturns})
 			return true
+		case *ast.FuncLit:
+			hasReturns := t.Type.Results != nil
+			stack = append(stack, &frame{hasReturns: hasReturns})
+			return true
 		case *ast.ReturnStmt:
-			p := parent(stack)
+			p, err := parent(stack)
+			if err != nil {
+				panic(fmt.Sprintf("%s: %s\n", filename, err))
+			}
 			if p.hasReturns {
 				if t.Results == nil {
 					total++
@@ -98,17 +112,33 @@ func countNaked(filename string, src any) (total, mixed int, _ error) {
 			}
 		}
 		stack = append(stack, nil)
-		fmt.Println("incr", stack)
 		return true
 	})
 	return total, mixed, nil
 }
 
-func parent(stack []*frame) *frame {
+func parent(stack []*frame) (*frame, error) {
 	for i := len(stack) - 1; i >= 0; i-- {
 		if stack[i] != nil {
-			return stack[i]
+			return stack[i], nil
 		}
 	}
-	panic("no parent")
+	return nil, errors.New("no parent")
+}
+
+var (
+	_ = debugAST
+	_ = debugCode
+)
+
+func debugAST(fset *token.FileSet, node ast.Node) {
+	var buf bytes.Buffer
+	ast.Fprint(&buf, fset, node, nil)
+	fmt.Printf("%s\n", buf.String())
+}
+
+func debugCode(fset *token.FileSet, node ast.Node) {
+	var buf bytes.Buffer
+	printer.Fprint(&buf, fset, node)
+	fmt.Printf("%s\n", buf.String())
 }

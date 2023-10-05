@@ -62,6 +62,14 @@ func foo() (err error) {
 			filename:  "testdata/naked.go",
 			wantTotal: 1,
 		},
+		{
+			name: "func literal",
+			src: `package foo
+			var _ = func() (err error) {
+				return
+			}`,
+			wantTotal: 1,
+		},
 	}
 
 	for _, tt := range tests {
