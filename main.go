@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -23,11 +26,48 @@ type frame struct {
 	clothed, naked bool
 }
 
+const (
+	skipTrigger = "DO NOT EDIT"
+	headerBytes = 1024
+)
+
+func shouldSkip(filename string, src any) (bool, error) {
+	if src != nil {
+		switch t := src.(type) {
+		case string:
+			return strings.Contains(t, skipTrigger), nil
+		case []byte:
+			return bytes.Contains(t, []byte(skipTrigger)), nil
+		default:
+			panic(fmt.Sprintf("not sure how to handle src of type %T", src))
+		}
+	}
+
+	file, err := os.Open(filename)
+	if err != nil {
+		return false, err
+	}
+	content, err := io.ReadAll(io.LimitReader(file, headerBytes))
+	if err != nil {
+		_ = file.Close()
+		return false, err
+	}
+	_ = file.Close()
+	return bytes.Contains(content, []byte(skipTrigger)), nil
+}
+
 func countNaked(filename string, src any) (total, mixed int, _ error) {
+	skip, err := shouldSkip(filename, src)
+	if err != nil {
+		return 0, 0, err
+	}
+	if skip {
+		return 0, 0, nil
+	}
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filename, src, parser.AllErrors)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, fmt.Errorf("failed to parse: %w", err)
 	}
 
 	stack := make([]*frame, 0, 10)
