@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	count, mixed, err := scanFile(os.Args[1])
+	count, mixed, err := countNaked(os.Args[1], nil)
 	if err != nil {
 		panic(err)
 	}
@@ -18,80 +18,57 @@ func main() {
 	}
 }
 
-func scanFile(filename string) (naked int, mixed int, _ error) {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, filename, nil, parser.AllErrors)
-	if err != nil {
-		return 0, 0, err
-	}
-	v := &visitor{fset: fset}
-	ast.Walk(v, f)
-	return v.found, v.mixed, nil
-}
-
-func foo() (err error) {
-	return
-}
-
-func bar() {}
-
-func baz() error {
-	return func() (err error) {
-		if false {
-			return nil
-		}
-		return
-	}()
-}
-
 type frame struct {
 	hasReturns     bool
 	clothed, naked bool
 }
 
-type visitor struct {
-	fset  *token.FileSet
-	stack []*frame
-	found int
-	mixed int
-}
+func countNaked(filename string, src any) (total, mixed int, _ error) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filename, src, parser.AllErrors)
+	if err != nil {
+		return 0, 0, err
+	}
 
-func (v *visitor) Visit(node ast.Node) ast.Visitor {
-	if node == nil {
-		if l := len(v.stack); l > 0 {
-			var p *frame
-			p, v.stack = v.stack[l-1], v.stack[:l-1]
-			if p != nil && p.clothed && p.naked {
-				v.mixed++
+	stack := make([]*frame, 0, 10)
+
+	ast.Inspect(f, func(node ast.Node) bool {
+		if node == nil {
+			if p := stack[len(stack)-1]; p != nil && p.clothed && p.naked {
+				mixed++
+			}
+			stack = stack[:len(stack)-1]
+			fmt.Println("decr", stack)
+			return false
+		}
+		switch t := node.(type) {
+		case *ast.FuncDecl:
+			hasReturns := t.Type.Results != nil
+			stack = append(stack, &frame{hasReturns: hasReturns})
+			return true
+		case *ast.ReturnStmt:
+			p := parent(stack)
+			if p.hasReturns {
+				if t.Results == nil {
+					total++
+					p.naked = true
+				} else {
+					p.clothed = true
+				}
 			}
 		}
-		return nil
-	}
-	switch t := node.(type) {
-	case *ast.FuncDecl:
-		hasReturns := t.Type.Results != nil
-		v.stack = append(v.stack, &frame{hasReturns: hasReturns})
-	case *ast.ReturnStmt:
-		p := v.parent()
-		if p.hasReturns {
-			if t.Results == nil {
-				v.found++
-				p.naked = true
-			} else {
-				p.clothed = true
-			}
-		}
-	default:
-		v.stack = append(v.stack, nil)
-	}
-	return v
+		stack = append(stack, nil)
+		fmt.Println("incr", stack)
+		return true
+	})
+	return total, mixed, nil
 }
 
-func (v *visitor) parent() *frame {
-	for i := len(v.stack) - 1; i >= 0; i-- {
-		if v.stack[i] != nil {
-			return v.stack[i]
+func parent(stack []*frame) *frame {
+	for i := len(stack) - 1; i >= 0; i-- {
+		if stack[i] != nil {
+			return stack[i]
 		}
 	}
-	return nil
+	panic("no parent")
 }
