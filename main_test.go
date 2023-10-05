@@ -4,10 +4,10 @@ import "testing"
 
 func Test_countNaked(t *testing.T) {
 	tests := []struct {
-		name                 string
-		filename             string
-		src                  any
-		wantTotal, wantMixed int
+		name                              string
+		filename                          string
+		src                               any
+		wantTotal, wantClothed, wantMixed int
 	}{
 		{
 			name: "no funcs",
@@ -30,8 +30,9 @@ func Test_countNaked(t *testing.T) {
 				}
 				return
 			}`,
-			wantTotal: 1,
-			wantMixed: 1,
+			wantTotal:   1,
+			wantClothed: 1,
+			wantMixed:   1,
 		},
 		{
 			name: "with if",
@@ -44,6 +45,7 @@ func foo() error {
 	_ = f.Close()
 	return nil
 }`,
+			wantClothed: 2,
 		},
 		{
 			name: "generated",
@@ -74,12 +76,12 @@ func foo() (err error) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			total, mixed, err := countNaked(tt.filename, tt.src)
+			total, clothed, mixed, err := countNaked(tt.filename, tt.src)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if total != tt.wantTotal || mixed != tt.wantMixed {
-				t.Errorf("Unexpected result. Want: %d/%d, got %d/%d", tt.wantTotal, tt.wantMixed, total, mixed)
+			if total != tt.wantTotal || clothed != tt.wantClothed || mixed != tt.wantMixed {
+				t.Errorf("Unexpected result. Want: %d/%d/%d, got %d/%d/%d", tt.wantTotal, tt.wantClothed, tt.wantMixed, total, clothed, mixed)
 			}
 		})
 	}

@@ -16,17 +16,19 @@ import (
 
 func main() {
 	s := bufio.NewScanner(os.Stdin)
-	var total, mixed int64
+	var naked, clothed, mixed int64
 	for s.Scan() {
 		filename := s.Text()
-		t, m, err := countNaked(filename, nil)
+		n, c, m, err := countNaked(filename, nil)
 		if err != nil {
 			fmt.Printf("%s: %s\n", filename, err)
 		}
-		total += int64(t)
+		naked += int64(n)
+		clothed += int64(c)
 		mixed += int64(m)
 	}
-	fmt.Printf("Found %d naked returns (%d mixed functions)\n", total, mixed)
+	fmt.Printf("Found %d total returns (%d naked, %d clothed) and %d functions with both naked and clothed returns\n",
+		naked+clothed, naked, clothed, mixed)
 }
 
 type frame struct {
@@ -64,18 +66,18 @@ func shouldSkip(filename string, src any) (bool, error) {
 	return bytes.Contains(content, []byte(skipTrigger)), nil
 }
 
-func countNaked(filename string, src any) (total, mixed int, _ error) {
+func countNaked(filename string, src any) (naked, clothed, mixed int, _ error) {
 	skip, err := shouldSkip(filename, src)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 	if skip {
-		return 0, 0, nil
+		return 0, 0, 0, nil
 	}
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filename, src, parser.AllErrors)
 	if err != nil {
-		return 0, 0, fmt.Errorf("failed to parse: %w", err)
+		return 0, 0, 0, fmt.Errorf("failed to parse: %w", err)
 	}
 
 	stack := make([]*frame, 0, 10)
@@ -104,9 +106,10 @@ func countNaked(filename string, src any) (total, mixed int, _ error) {
 			}
 			if p.hasReturns {
 				if t.Results == nil {
-					total++
+					naked++
 					p.naked = true
 				} else {
+					clothed++
 					p.clothed = true
 				}
 			}
@@ -114,7 +117,7 @@ func countNaked(filename string, src any) (total, mixed int, _ error) {
 		stack = append(stack, nil)
 		return true
 	})
-	return total, mixed, nil
+	return naked, clothed, mixed, nil
 }
 
 func parent(stack []*frame) (*frame, error) {
