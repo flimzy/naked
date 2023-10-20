@@ -11,6 +11,8 @@ import (
 	"go/token"
 	"io"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -43,6 +45,9 @@ const (
 )
 
 func shouldSkip(filename string, src any) (bool, error) {
+	if slices.Contains(filepath.SplitList(filename), "testdata") {
+		return true, nil
+	}
 	if src != nil {
 		switch t := src.(type) {
 		case string:
