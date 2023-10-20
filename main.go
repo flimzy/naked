@@ -45,7 +45,7 @@ const (
 )
 
 func shouldSkip(filename string, src any) (bool, error) {
-	if slices.Contains(filepath.SplitList(filename), "testdata") {
+	if slices.Contains(strings.Split(filename, string(filepath.Separator)), "testdata") {
 		return true, nil
 	}
 	if src != nil {

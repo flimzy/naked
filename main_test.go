@@ -1,10 +1,16 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func Test_countNaked(t *testing.T) {
 	tests := []struct {
-		name                                         string
+		name string
+		// wd sets the working directory the test should be run from.
+		// used to avoid the `testdata` skipping rule for actual testdata.
+		wd                                           string
 		filename                                     string
 		src                                          any
 		wantTotal, wantNaked, wantClothed, wantMixed int
@@ -60,13 +66,19 @@ func foo() (err error) {
 		},
 		{
 			name:     "skip file",
-			filename: "testdata/skip.go",
+			wd:       "testdata",
+			filename: "skip.go",
 		},
 		{
 			name:      "from file",
-			filename:  "testdata/naked.go",
+			wd:        "testdata",
+			filename:  "naked.go",
 			wantTotal: 1,
 			wantNaked: 1,
+		},
+		{
+			name:     "skip testdata",
+			filename: "testdata/naked.go",
 		},
 		{
 			name: "func literal",
@@ -89,6 +101,18 @@ func foo() (err error) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.wd != "" {
+				cwd, err := os.Getwd()
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					_ = os.Chdir(cwd)
+				})
+				if err := os.Chdir(tt.wd); err != nil {
+					t.Fatal(err)
+				}
+			}
 			total, naked, clothed, mixed, err := countNaked(tt.filename, tt.src)
 			if err != nil {
 				t.Fatal(err)
